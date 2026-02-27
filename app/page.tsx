@@ -12,7 +12,7 @@ import type { Track } from "./components/Player";
 import type { SearchResultItem } from "./types/api";
 
 const MAX_HISTORY = 50;
-const currentVersion = "1.0.0";
+const currentVersion = "1.0.1";
 
 function searchResultsToTracks(results: SearchResultItem[]): Track[] {
   return results.map((item) => ({
