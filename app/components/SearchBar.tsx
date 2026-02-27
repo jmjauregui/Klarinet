@@ -18,7 +18,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
 
   return (
     <form onSubmit={handleSubmit} className="relative w-full md:max-w-md">
-      <div className="relative">
+      <div className="relative w-full">
         <svg
           className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
           width="16"
