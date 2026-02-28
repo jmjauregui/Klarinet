@@ -1,45 +1,54 @@
 /**
  * Archivo de configuración de colores y tema de Klarinet.
  * Edita estos valores para cambiar la apariencia global de la aplicación.
- * Inspirado en Apple Music con tema light.
+ * Inspirado en Apple Music con temas light y dark.
  */
 
-export const theme = {
+export const lightTheme = {
   colors: {
-    /** Fondo principal de la aplicación */
     background: "#ffffff",
-    /** Fondo de la barra lateral */
     sidebarBg: "#f5f5f7",
-    /** Fondo del reproductor inferior */
     playerBg: "#f8f8fa",
-    /** Fondo de las tarjetas y superficies elevadas */
     surface: "#f0f0f2",
-    /** Fondo de inputs y campos de búsqueda */
     inputBg: "#e8e8ed",
-    /** Color de texto principal */
     text: "#1d1d1f",
-    /** Color de texto secundario / subtítulos */
     textSecondary: "#6e6e73",
-    /** Color de texto terciario / placeholders */
     textTertiary: "#a1a1a6",
-    /** Color de acento / resaltado principal */
     accent: "#fc3c44",
-    /** Color de hover sobre botones de acento */
     accentHover: "#ff5e64",
-    /** Color secundario / elementos inactivos */
     secondary: "#a1a1a6",
-    /** Bordes sutiles */
     border: "#d2d2d7",
-    /** Fondo de hover sobre elementos */
     hoverBg: "#e8e8ed",
-    /** Fondo de elemento activo/seleccionado */
     activeBg: "#e0e0e5",
   },
-  /** Dimensiones fijas del layout */
+} as const;
+
+export const darkTheme = {
+  colors: {
+    background: "#0a0a0a",
+    sidebarBg: "#111113",
+    playerBg: "#141416",
+    surface: "#1c1c1e",
+    inputBg: "#2c2c2e",
+    text: "#f5f5f7",
+    textSecondary: "#98989d",
+    textTertiary: "#636366",
+    accent: "#fc3c44",
+    accentHover: "#ff5e64",
+    secondary: "#636366",
+    border: "#38383a",
+    hoverBg: "#2c2c2e",
+    activeBg: "#3a3a3c",
+  },
+} as const;
+
+export const theme = {
+  colors: lightTheme.colors,
   layout: {
     sidebarWidth: "260px",
     playerHeight: "90px",
   },
 } as const;
 
+export type ThemeMode = "light" | "dark";
 export type Theme = typeof theme;

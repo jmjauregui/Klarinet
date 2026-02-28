@@ -8,6 +8,9 @@ import HomeView from "./components/HomeView";
 import SearchResults from "./components/SearchResults";
 import GenreOnboarding from "./components/GenreOnboarding";
 import FavoritesView from "./components/FavoritesView";
+import SettingsView from "./components/SettingsView";
+import { useTheme } from "./components/ThemeToggle";
+import { useAccentColor } from "./components/SettingsView";
 import type { Track } from "./components/Player";
 import type { SearchResultItem } from "./types/api";
 
@@ -71,6 +74,8 @@ function saveFavorites(tracks: Track[]) {
 }
 
 export default function Home() {
+  const { mode: themeMode, toggle: toggleTheme } = useTheme();
+  const { accent, setColor: setAccentColor } = useAccentColor();
   const [activeSection, setActiveSection] = useState("home");
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [queue, setQueue] = useState<Track[]>([]);
@@ -264,6 +269,8 @@ export default function Home() {
             currentTrackId={currentTrack?.id ?? null}
             favoriteTracks={favoriteTracks}
             onToggleFavorite={handleToggleFavorite}
+            onSearch={handleSearch}
+            recentlyPlayed={recentlyPlayed}
           />
         );
       case "library":
@@ -291,6 +298,15 @@ export default function Home() {
             onRemoveFavorite={handleRemoveFavorite}
           />
         );
+      case "settings":
+        return (
+          <SettingsView
+            themeMode={themeMode}
+            onThemeToggle={toggleTheme}
+            accent={accent}
+            onAccentChange={setAccentColor}
+          />
+        );
       case "home":
       default:
         return (
@@ -315,7 +331,7 @@ export default function Home() {
   return (
     <div className="h-screen overflow-hidden bg-background">
       <Sidebar activeSection={activeSection} onNavigate={setActiveSection} currentTrack={currentTrack} />
-      <MainContent onSearch={handleSearch}>
+      <MainContent onSearch={handleSearch} themeMode={themeMode} onThemeToggle={toggleTheme}>
         {renderContent()}
       </MainContent>
       <Player currentTrack={currentTrack} queue={queue} onTrackChange={handleTrackChange} />

@@ -27,6 +27,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Tema Oscuro */
+[data-theme="dark"] {
+  --klarinet-bg: #0a0a0a;
+  --klarinet-sidebar-bg: #111113;
+  --klarinet-player-bg: #141416;
+  --klarinet-surface: #1c1c1e;
+  --klarinet-input-bg: #2c2c2e;
+  --klarinet-text: #f5f5f7;
+  --klarinet-text-secondary: #98989d;
+  --klarinet-text-tertiary: #636366;
+  --klarinet-accent: #fc3c44;
+  --klarinet-accent-hover: #ff5e64;
+  --klarinet-secondary: #636366;
+  --klarinet-border: #38383a;
+  --klarinet-hover-bg: #2c2c2e;
+  --klarinet-active-bg: #3a3a3c;
+}
+
 /* Mobile overrides */
 @media (max-width: 767px) {
   :root {

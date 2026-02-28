@@ -47,7 +47,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        {/* Aplica el tema guardado antes del primer render para evitar flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('klarinet-theme');if(t)document.documentElement.setAttribute('data-theme',t);var a=localStorage.getItem('klarinet-accent');var h=localStorage.getItem('klarinet-accent-hover');if(a)document.documentElement.style.setProperty('--klarinet-accent',a);if(h)document.documentElement.style.setProperty('--klarinet-accent-hover',h);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

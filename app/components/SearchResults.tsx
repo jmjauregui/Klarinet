@@ -1,7 +1,13 @@
 "use client";
 
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import type { SearchResultItem } from "../types/api";
 import type { Track } from "./Player";
+
+const FALLBACK_SUGGESTIONS = [
+  "Bad Bunny", "Taylor Swift", "The Weeknd", "Peso Pluma",
+  "Daft Punk", "Arctic Monkeys", "Billie Eilish", "Drake",
+];
 
 interface SearchResultsProps {
   query: string;
@@ -12,6 +18,8 @@ interface SearchResultsProps {
   currentTrackId: string | null;
   favoriteTracks: Track[];
   onToggleFavorite: (track: Track) => void;
+  onSearch: (query: string) => void;
+  recentlyPlayed: Track[];
 }
 
 export default function SearchResults({
@@ -23,6 +31,8 @@ export default function SearchResults({
   currentTrackId,
   favoriteTracks,
   onToggleFavorite,
+  onSearch,
+  recentlyPlayed,
 }: SearchResultsProps) {
   const isFavorite = (id: string) => favoriteTracks.some((t) => t.id === id);
   const handlePlay = (item: SearchResultItem) => {
@@ -45,22 +55,26 @@ export default function SearchResults({
   };
 
   if (!query) {
-    return (
-      <div>
-        <h2 className="text-2xl font-bold mb-6">Buscar</h2>
-        <p className="text-text-secondary">
-          Escribe algo en la barra de búsqueda para encontrar canciones y
-          artistas
-        </p>
-      </div>
-    );
+    return <SearchLanding onSearch={onSearch} recentlyPlayed={recentlyPlayed} />;
   }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">
-        Resultados para &ldquo;{query}&rdquo;
-      </h2>
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => onSearch("")}
+          className="flex items-center justify-center w-9 h-9 rounded-full bg-surface hover:bg-hover border border-border transition-colors cursor-pointer shrink-0"
+          title="Volver al buscador"
+          aria-label="Volver al buscador"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        <h2 className="text-2xl font-bold">
+          Resultados para &ldquo;{query}&rdquo;
+        </h2>
+      </div>
 
       {/* Loading */}
       {isLoading && (
@@ -222,6 +236,191 @@ export default function SearchResults({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ====== Pantalla de búsqueda estilo Google ====== */
+
+function SearchLanding({ onSearch, recentlyPlayed }: { onSearch: (q: string) => void; recentlyPlayed: Track[] }) {
+  const [localQuery, setLocalQuery] = useState("");
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const fetchedRef = useRef(false);
+
+  const fetchSuggestions = () => {
+    if (recentlyPlayed.length === 0) return;
+
+    setLoadingSuggestions(true);
+
+    const tracks = recentlyPlayed.slice(0, 10).map((t) => ({
+      title: t.title,
+      artist: t.artist,
+    }));
+
+    fetch("/api/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recentTracks: tracks }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+          setAiSuggestions(data.suggestions.slice(0, 8));
+        }
+      })
+      .catch(() => {
+        // silencioso, usa fallback
+      })
+      .finally(() => setLoadingSuggestions(false));
+  };
+
+  // Fetch AI suggestions on mount
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    fetchSuggestions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentlyPlayed]);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (localQuery.trim()) onSearch(localQuery.trim());
+  };
+
+  const chips = aiSuggestions.length > 0 ? aiSuggestions : FALLBACK_SUGGESTIONS;
+  const isPersonalized = aiSuggestions.length > 0;
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 -mt-4 md:-mt-8">
+      {/* Logo */}
+      <div className="flex items-center gap-3 mb-8 md:mb-10 select-none">
+        <div className="w-14 h-14 md:w-16 md:h-16 bg-accent rounded-2xl flex items-center justify-center shadow-lg shadow-accent/20">
+          <span className="text-white font-bold text-2xl md:text-3xl">K</span>
+        </div>
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Klarinet</h1>
+          <p className="text-text-tertiary text-xs md:text-sm -mt-0.5">Busca tu música favorita</p>
+        </div>
+      </div>
+
+      {/* Barra de búsqueda grande */}
+      <form onSubmit={handleSubmit} className="w-full max-w-xl mb-6">
+        <div className="relative group">
+          <svg
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within:text-accent transition-colors"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            value={localQuery}
+            onChange={(e) => setLocalQuery(e.target.value)}
+            placeholder="Buscar canciones, artistas, álbumes..."
+            autoFocus
+            className="w-full bg-surface text-foreground text-base md:text-lg rounded-2xl pl-12 pr-14 py-4 outline-none placeholder:text-text-tertiary border border-border focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all shadow-sm hover:shadow-md focus:shadow-md"
+          />
+          {localQuery ? (
+            <button
+              type="button"
+              onClick={() => setLocalQuery("")}
+              className="absolute right-14 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-foreground transition-colors cursor-pointer p-1"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-xl bg-accent hover:bg-accent-hover text-white transition-colors cursor-pointer"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
+        </div>
+      </form>
+
+      {/* Sugerencias rápidas */}
+      <div className="flex flex-wrap items-center justify-center gap-2 max-w-xl">
+        {loadingSuggestions ? (
+          <>
+            <span className="text-text-tertiary text-xs mr-1 flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              Pensando recomendaciones...
+            </span>
+            {[...Array(4)].map((_, i) => (
+              <span key={i} className="px-3.5 py-1.5 rounded-full text-sm bg-surface border border-border animate-pulse w-24 h-8" />
+            ))}
+          </>
+        ) : (
+          <>
+            <span className="text-text-tertiary text-xs mr-1 flex items-center gap-1">
+              {isPersonalized && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--klarinet-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+              )}
+              {isPersonalized ? "Para ti:" : "Prueba:"}
+            </span>
+            {chips.map((chip) => (
+              <button
+                key={chip}
+                onClick={() => onSearch(chip)}
+                className="px-3.5 py-1.5 rounded-full text-sm bg-surface border border-border text-text-secondary hover:text-foreground hover:border-accent/50 hover:bg-hover transition-all cursor-pointer"
+              >
+                {chip}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Botón regenerar sugerencias */}
+      {!loadingSuggestions && recentlyPlayed.length > 0 && (
+        <button
+          onClick={fetchSuggestions}
+          className="mt-4 flex items-center gap-1.5 text-xs text-text-tertiary hover:text-accent transition-colors cursor-pointer group"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="group-hover:rotate-180 transition-transform duration-500"
+          >
+            <polyline points="1 4 1 10 7 10" />
+            <polyline points="23 20 23 14 17 14" />
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+          </svg>
+          Regenerar sugerencias
+        </button>
+      )}
+
+      {/* Texto decorativo */}
+      <p className="mt-10 text-text-tertiary text-xs text-center max-w-sm leading-relaxed">
+        Escucha millones de canciones en streaming. Busca por nombre de canción, artista o álbum.
+      </p>
     </div>
   );
 }
