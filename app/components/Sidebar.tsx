@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Track } from "./Player";
+import type { Playlist } from "./AddToPlaylistModal";
 
 const navItems = [
   { label: "Inicio", icon: HomeIcon, id: "home" },
@@ -14,10 +15,12 @@ interface SidebarProps {
   activeSection: string;
   onNavigate: (section: string) => void;
   currentTrack: Track | null;
+  playlists: Playlist[];
+  onCreatePlaylist: () => void;
+  onSelectPlaylist: (id: string) => void;
 }
 
-export default function Sidebar({ activeSection, onNavigate, currentTrack }: SidebarProps) {
-  const [playlists] = useState<string[]>([]);
+export default function Sidebar({ activeSection, onNavigate, currentTrack, playlists, onCreatePlaylist, onSelectPlaylist }: SidebarProps) {
   const [isClearingCache, setIsClearingCache] = useState(false);
 
   const handleClearCache = async () => {
@@ -95,7 +98,7 @@ export default function Sidebar({ activeSection, onNavigate, currentTrack }: Sid
           <span className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
             Playlists
           </span>
-          <button className="text-text-tertiary hover:text-foreground transition-colors cursor-pointer">
+          <button onClick={onCreatePlaylist} className="text-text-tertiary hover:text-foreground transition-colors cursor-pointer">
             <PlusIcon />
           </button>
           </div>
@@ -106,16 +109,27 @@ export default function Sidebar({ activeSection, onNavigate, currentTrack }: Sid
               <p className="text-text-tertiary text-sm">
                 Aún no tienes playlists
               </p>
-              <button className="mt-3 text-accent hover:text-accent-hover text-sm font-medium transition-colors cursor-pointer">
+              <button onClick={onCreatePlaylist} className="mt-3 text-accent hover:text-accent-hover text-sm font-medium transition-colors cursor-pointer">
                 Crear playlist
               </button>
             </div>
           ) : (
-            <ul>
-              {playlists.map((pl, i) => (
-                <li key={i}>
-                  <button className="w-full text-left px-3 py-2 rounded-lg text-sm text-text-secondary hover:bg-hover hover:text-foreground transition-colors cursor-pointer">
-                    {pl}
+            <ul className="space-y-0.5">
+              {playlists.map((pl) => (
+                <li key={pl.id}>
+                  <button
+                    onClick={() => onSelectPlaylist(pl.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer flex items-center gap-2.5 ${
+                      activeSection === `playlist-${pl.id}`
+                        ? "bg-active text-foreground font-medium"
+                        : "text-text-secondary hover:bg-hover hover:text-foreground"
+                    }`}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--klarinet-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                      <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+                    </svg>
+                    <span className="truncate">{pl.name}</span>
+                    <span className="ml-auto text-xs text-text-tertiary shrink-0">{pl.tracks.length}</span>
                   </button>
                 </li>
               ))}

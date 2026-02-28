@@ -20,6 +20,7 @@ interface SearchResultsProps {
   onToggleFavorite: (track: Track) => void;
   onSearch: (query: string) => void;
   recentlyPlayed: Track[];
+  onAddToPlaylist: (track: Track) => void;
 }
 
 export default function SearchResults({
@@ -33,6 +34,7 @@ export default function SearchResults({
   onToggleFavorite,
   onSearch,
   recentlyPlayed,
+  onAddToPlaylist,
 }: SearchResultsProps) {
   const isFavorite = (id: string) => favoriteTracks.some((t) => t.id === id);
   const handlePlay = (item: SearchResultItem) => {
@@ -121,8 +123,9 @@ export default function SearchResults({
       {!isLoading && results.length > 0 && (
         <div className="space-y-1">
           {/* Header de la tabla */}
-          <div className="hidden md:grid grid-cols-[40px_36px_1fr_120px_100px_80px] gap-4 px-4 py-2 text-xs text-text-tertiary uppercase tracking-wider border-b border-border mb-2">
+          <div className="hidden md:grid grid-cols-[40px_36px_36px_1fr_120px_100px_80px] gap-4 px-4 py-2 text-xs text-text-tertiary uppercase tracking-wider border-b border-border mb-2">
             <span>#</span>
+            <span></span>
             <span></span>
             <span>Título</span>
             <span>Canal</span>
@@ -137,7 +140,7 @@ export default function SearchResults({
               <button
                 key={item.ID}
                 onClick={() => handlePlay(item)}
-                className={`w-full grid grid-cols-[32px_1fr_50px] md:grid-cols-[40px_36px_1fr_120px_100px_80px] gap-2 md:gap-4 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-left transition-colors group cursor-pointer ${
+                className={`w-full grid grid-cols-[32px_1fr_28px_50px] md:grid-cols-[40px_36px_36px_1fr_120px_100px_80px] gap-2 md:gap-4 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-left transition-colors group cursor-pointer ${
                   isCurrentTrack
                     ? "bg-accent/15 text-accent"
                     : "hover:bg-hover"
@@ -189,6 +192,27 @@ export default function SearchResults({
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                     </svg>
                   )}
+                </span>
+
+                {/* Agregar a playlist */}
+                <span
+                  className="flex items-center justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const track: Track = {
+                      title: item.title,
+                      artist: item.uploader.username,
+                      thumbnail: item.thumbnail_src,
+                      duration: item.duration,
+                      url: item.url,
+                      id: item.ID,
+                    };
+                    onAddToPlaylist(track);
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--klarinet-text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all hover:stroke-accent hover:scale-110 flex-shrink-0">
+                    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
                 </span>
 
                 {/* Thumbnail + Título */}

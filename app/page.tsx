@@ -9,10 +9,14 @@ import SearchResults from "./components/SearchResults";
 import GenreOnboarding from "./components/GenreOnboarding";
 import FavoritesView from "./components/FavoritesView";
 import SettingsView from "./components/SettingsView";
+import PlaylistView from "./components/PlaylistView";
+import CreatePlaylistModal from "./components/CreatePlaylistModal";
+import AddToPlaylistModal from "./components/AddToPlaylistModal";
 import { useTheme } from "./components/ThemeToggle";
 import { useAccentColor } from "./components/SettingsView";
 import type { Track } from "./components/Player";
 import type { SearchResultItem } from "./types/api";
+import type { Playlist } from "./components/AddToPlaylistModal";
 
 const MAX_HISTORY = 50;
 const currentVersion = "1.0.1";
@@ -73,6 +77,20 @@ function saveFavorites(tracks: Track[]) {
   localStorage.setItem("klarinet-favorites", JSON.stringify(tracks));
 }
 
+function loadPlaylists(): Playlist[] {
+  try {
+    const stored = localStorage.getItem("klarinet-playlists");
+    if (stored) return JSON.parse(stored);
+  } catch {
+    localStorage.removeItem("klarinet-playlists");
+  }
+  return [];
+}
+
+function savePlaylists(playlists: Playlist[]) {
+  localStorage.setItem("klarinet-playlists", JSON.stringify(playlists));
+}
+
 export default function Home() {
   const { mode: themeMode, toggle: toggleTheme } = useTheme();
   const { accent, setColor: setAccentColor } = useAccentColor();
@@ -87,6 +105,10 @@ export default function Home() {
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
+  const [showAddToPlaylistModal, setShowAddToPlaylistModal] = useState(false);
+  const [trackForPlaylist, setTrackForPlaylist] = useState<Track | null>(null);
 
   // Ref para evitar duplicar el guardado de historial
   const lastHistoryTrackId = useRef<string | null>(null);
@@ -142,6 +164,7 @@ export default function Home() {
 
     setFavoriteTracks(loadFavorites());
     setRecentlyPlayed(loadHistory());
+    setPlaylists(loadPlaylists());
 
     // Verificar si necesita onboarding
     const prefs = localStorage.getItem("klarinet-preferences");
@@ -252,8 +275,63 @@ export default function Home() {
 
   const handleOnboardingComplete = useCallback((genres: string[]) => {
     setShowOnboarding(false);
-    // genres ya se guardaron en localStorage dentro del componente
-    void genres; // uso implícito
+    void genres;
+  }, []);
+
+  // ---- Playlist handlers ----
+  const handleCreatePlaylist = useCallback((name: string) => {
+    const newPlaylist: Playlist = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name,
+      tracks: [],
+      createdAt: Date.now(),
+    };
+    setPlaylists((prev) => {
+      const updated = [newPlaylist, ...prev];
+      savePlaylists(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleAddTrackToPlaylist = useCallback((playlistId: string, track: Track) => {
+    setPlaylists((prev) => {
+      const updated = prev.map((pl) => {
+        if (pl.id !== playlistId) return pl;
+        if (pl.tracks.some((t) => t.id === track.id)) return pl;
+        return { ...pl, tracks: [...pl.tracks, track] };
+      });
+      savePlaylists(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleRemoveTrackFromPlaylist = useCallback((playlistId: string, trackId: string) => {
+    setPlaylists((prev) => {
+      const updated = prev.map((pl) => {
+        if (pl.id !== playlistId) return pl;
+        return { ...pl, tracks: pl.tracks.filter((t) => t.id !== trackId) };
+      });
+      savePlaylists(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleDeletePlaylist = useCallback((playlistId: string) => {
+    setPlaylists((prev) => {
+      const updated = prev.filter((pl) => pl.id !== playlistId);
+      savePlaylists(updated);
+      return updated;
+    });
+    setActiveSection("home");
+  }, []);
+
+  const handleSelectPlaylist = useCallback((id: string) => {
+    setActiveSection(`playlist-${id}`);
+  }, []);
+
+  const handleOpenAddToPlaylist = useCallback((track: Track) => {
+    setTrackForPlaylist(track);
+    setShowAddToPlaylistModal(true);
   }, []);
 
   const renderContent = () => {
@@ -271,6 +349,7 @@ export default function Home() {
             onToggleFavorite={handleToggleFavorite}
             onSearch={handleSearch}
             recentlyPlayed={recentlyPlayed}
+            onAddToPlaylist={handleOpenAddToPlaylist}
           />
         );
       case "library":
@@ -307,8 +386,28 @@ export default function Home() {
             onAccentChange={setAccentColor}
           />
         );
-      case "home":
       default:
+        // Handle playlist-* routes
+        if (activeSection.startsWith("playlist-")) {
+          const playlistId = activeSection.replace("playlist-", "");
+          const playlist = playlists.find((pl) => pl.id === playlistId);
+          if (playlist) {
+            return (
+              <PlaylistView
+                playlist={playlist}
+                currentTrackId={currentTrack?.id ?? null}
+                onPlayTrack={(track, trackList) => {
+                  setCurrentTrack(track);
+                  if (trackList) setQueue(trackList);
+                  else setQueue([track]);
+                }}
+                onRemoveTrack={handleRemoveTrackFromPlaylist}
+                onDeletePlaylist={handleDeletePlaylist}
+                onGoBack={() => setActiveSection("home")}
+              />
+            );
+          }
+        }
         return (
           <HomeView
             onPlayTrack={handleHomePlayTrack}
@@ -330,11 +429,37 @@ export default function Home() {
 
   return (
     <div className="h-screen overflow-hidden bg-background">
-      <Sidebar activeSection={activeSection} onNavigate={setActiveSection} currentTrack={currentTrack} />
+      <Sidebar
+        activeSection={activeSection}
+        onNavigate={setActiveSection}
+        currentTrack={currentTrack}
+        playlists={playlists}
+        onCreatePlaylist={() => setShowCreatePlaylistModal(true)}
+        onSelectPlaylist={handleSelectPlaylist}
+      />
       <MainContent onSearch={handleSearch} themeMode={themeMode} onThemeToggle={toggleTheme}>
         {renderContent()}
       </MainContent>
       <Player currentTrack={currentTrack} queue={queue} onTrackChange={handleTrackChange} />
+
+      {/* Playlist Modals */}
+      <CreatePlaylistModal
+        open={showCreatePlaylistModal}
+        onClose={() => setShowCreatePlaylistModal(false)}
+        onCreate={handleCreatePlaylist}
+        existingNames={playlists.map((pl) => pl.name)}
+      />
+      <AddToPlaylistModal
+        open={showAddToPlaylistModal}
+        onClose={() => setShowAddToPlaylistModal(false)}
+        track={trackForPlaylist}
+        playlists={playlists}
+        onAddToPlaylist={handleAddTrackToPlaylist}
+        onCreateNew={() => {
+          setShowAddToPlaylistModal(false);
+          setShowCreatePlaylistModal(true);
+        }}
+      />
     </div>
   );
 }
