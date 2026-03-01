@@ -123,14 +123,13 @@ export default function SearchResults({
       {!isLoading && results.length > 0 && (
         <div className="space-y-1">
           {/* Header de la tabla */}
-          <div className="hidden md:grid grid-cols-[40px_36px_36px_1fr_120px_100px_80px] gap-4 px-4 py-2 text-xs text-text-tertiary uppercase tracking-wider border-b border-border mb-2">
+          <div className="hidden md:grid grid-cols-[40px_36px_36px_120px_100px_80px] gap-4 px-4 py-2 text-xs text-text-tertiary uppercase tracking-wider border-b border-border mb-2">
             <span>#</span>
             <span></span>
             <span></span>
             <span>Título</span>
             <span>Canal</span>
             <span className="text-right">Vistas</span>
-            <span className="text-right">Duración</span>
           </div>
 
           {results.map((item, index) => {
@@ -140,7 +139,7 @@ export default function SearchResults({
               <button
                 key={item.ID}
                 onClick={() => handlePlay(item)}
-                className={`w-full grid grid-cols-[32px_1fr_28px_50px] md:grid-cols-[40px_36px_36px_1fr_120px_100px_80px] gap-2 md:gap-4 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-left transition-colors group cursor-pointer ${
+                className={`w-full grid grid-cols-[32px_32px_auto] md:grid-cols-[40px_36px_36px_120px_100px_80px] gap-2 md:gap-4 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-left transition-colors group cursor-pointer ${
                   isCurrentTrack
                     ? "bg-accent/15 text-accent"
                     : "hover:bg-hover"
@@ -184,11 +183,11 @@ export default function SearchResults({
                   }}
                 >
                   {isFavorite(item.ID) ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--klarinet-accent)" className="transition-transform hover:scale-110 flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--klarinet-accent)" className="transition-transform hover:scale-110 flex-shrink-0">
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                     </svg>
                   ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--klarinet-text-tertiary)" strokeWidth="2" className="transition-all hover:stroke-accent hover:scale-110 flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--klarinet-text-tertiary)" strokeWidth="2" className="transition-all hover:stroke-accent hover:scale-110 flex-shrink-0">
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                     </svg>
                   )}
@@ -210,21 +209,21 @@ export default function SearchResults({
                     onAddToPlaylist(track);
                   }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--klarinet-text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all hover:stroke-accent hover:scale-110 flex-shrink-0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--klarinet-text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all hover:stroke-accent hover:scale-110 flex-shrink-0">
                     <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
                   </svg>
                 </span>
 
                 {/* Thumbnail + Título */}
-                <span className="flex items-center gap-3 min-w-0">
-                  <span className="w-10 h-10 rounded bg-surface overflow-hidden flex-shrink-0">
+                <span className="flex items-center gap-2 md:gap-3 min-w-0">
+                  <span className="w-11 h-11 md:w-10 md:h-10 rounded bg-surface overflow-hidden flex-shrink-0">
                     <img
                       src={item.thumbnail_src}
                       alt={item.title}
                       className="w-full h-full object-cover"
                     />
                   </span>
-                  <span className="min-w-0">
+                  <span className="min-w-0 flex-1">
                     <span
                       className={`block text-sm font-medium truncate ${
                         isCurrentTrack ? "text-accent" : "text-foreground"
@@ -232,7 +231,7 @@ export default function SearchResults({
                     >
                       {item.title}
                     </span>
-                    <span className="block text-xs text-text-secondary truncate">
+                    <span className="block text-xs text-text-secondary truncate md:hidden">
                       {item.uploader.username}
                       {item.uploader.verified && (
                         <VerifiedBadge />
@@ -248,12 +247,7 @@ export default function SearchResults({
 
                 {/* Vistas */}
                 <span className="hidden md:flex items-center justify-end text-xs text-text-secondary tabular-nums">
-                  {formatViews(item.views)}
-                </span>
-
-                {/* Duración */}
-                <span className="flex items-center justify-end text-xs text-text-secondary tabular-nums">
-                  {item.duration_text}
+                  {formatViews(item.views)} - {item.duration_text}
                 </span>
               </button>
             );
