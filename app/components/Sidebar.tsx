@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Track } from "./Player";
 import type { Playlist } from "./AddToPlaylistModal";
 
@@ -18,11 +18,24 @@ interface SidebarProps {
   playlists: Playlist[];
   onCreatePlaylist: () => void;
   onSelectPlaylist: (id: string) => void;
+  navVisible: boolean;
 }
 
-export default function Sidebar({ activeSection, onNavigate, currentTrack, playlists, onCreatePlaylist, onSelectPlaylist }: SidebarProps) {
+export default function Sidebar({ activeSection, onNavigate, currentTrack, playlists, onCreatePlaylist, onSelectPlaylist, navVisible }: SidebarProps) {
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const menuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openMoreMenu = () => {
+    if (menuTimerRef.current) clearTimeout(menuTimerRef.current);
+    setShowMoreMenu(true);
+    menuTimerRef.current = setTimeout(() => setShowMoreMenu(false), 5000);
+  };
+
+  const closeMoreMenu = () => {
+    if (menuTimerRef.current) clearTimeout(menuTimerRef.current);
+    setShowMoreMenu(false);
+  };
 
   const handleClearCache = async () => {
     if (isClearingCache) return;
@@ -196,7 +209,7 @@ export default function Sidebar({ activeSection, onNavigate, currentTrack, playl
       </aside>
 
       {/* ===== Mobile bottom tab bar (<768px) ===== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[var(--bottom-nav-height)] bg-sidebar border-t border-border z-30 flex items-center justify-around px-2 safe-area-pb">
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-[var(--bottom-nav-height)] bg-sidebar border-t border-border z-30 flex items-center justify-around px-2 safe-area-pb transition-transform duration-300 ${navVisible ? "translate-y-0" : "translate-y-full"}`}>
         {navItems.map((item) => {
           const isActive = activeSection === item.id;
           return (
@@ -215,7 +228,7 @@ export default function Sidebar({ activeSection, onNavigate, currentTrack, playl
 
         {/* Botón 3 puntos al final */}
         <button
-          onClick={() => setShowMoreMenu(true)}
+          onClick={openMoreMenu}
           className="flex flex-col items-center justify-center gap-0.5 py-1 px-3 cursor-pointer transition-colors text-text-secondary"
         >
           <DotsIcon />
@@ -225,13 +238,13 @@ export default function Sidebar({ activeSection, onNavigate, currentTrack, playl
 
       {/* Mini-menú 3 puntos */}
       {showMoreMenu && (
-        <div className="md:hidden fixed inset-0 z-50" onClick={() => setShowMoreMenu(false)}>
+        <div className="md:hidden fixed inset-0 z-50" onClick={closeMoreMenu}>
           <div
             className="absolute bottom-[var(--bottom-nav-height)] right-2 w-52 bg-player border border-border rounded-xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => { onNavigate("settings"); setShowMoreMenu(false); }}
+              onClick={() => { onNavigate("settings"); closeMoreMenu(); }}
               className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-foreground hover:bg-hover transition-colors cursor-pointer"
             >
               <SettingsIcon active={activeSection === "settings"} />
@@ -240,7 +253,7 @@ export default function Sidebar({ activeSection, onNavigate, currentTrack, playl
             <div className="h-px bg-border mx-3" />
             <button
               onClick={async () => {
-                setShowMoreMenu(false);
+                closeMoreMenu();
                 if (isClearingCache) return;
                 if (!confirm("¿Limpiar caché de la aplicación? Esto recargará la página.")) return;
                 setIsClearingCache(true);

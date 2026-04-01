@@ -21,11 +21,13 @@ interface PlayerProps {
   onTrackReady: (track: Track) => void;
   favoriteTracks: Track[];
   onToggleFavorite: (track: Track) => void;
+  navVisible: boolean;
 }
 
-export default function Player({ currentTrack, queue, onTrackChange, onTrackError, onTrackReady, favoriteTracks, onToggleFavorite }: PlayerProps) {
+export default function Player({ currentTrack, queue, onTrackChange, onTrackError, onTrackReady, favoriteTracks, onToggleFavorite, navVisible }: PlayerProps) {
   const playerRef = useRef<ReactPlayer | null>(null);
   const pendingRemovalRef = useRef<Track | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [played, setPlayed] = useState(0); // 0-1 fraction
   const [playedSeconds, setPlayedSeconds] = useState(0);
@@ -34,6 +36,7 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
   const [isMuted, setIsMuted] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const isFavorite = currentTrack
     ? favoriteTracks.some((t) => t.id === currentTrack.id)
@@ -63,6 +66,45 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
       onTrackChange(queue[currentIndex - 1]);
     }
   }, [hasPrev, currentIndex, queue, onTrackChange, playedSeconds]);
+
+  // Wake Lock: mantener pantalla encendida mientras reproduce
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) return;
+
+    const acquire = async () => {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      } catch {
+        // Silencioso: permisos denegados o no soportado
+      }
+    };
+
+    const release = async () => {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+
+    // Re-adquirir cuando la pestaña vuelve al primer plano
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isPlaying) {
+        acquire();
+      }
+    };
+
+    if (isPlaying) {
+      acquire();
+    } else {
+      release();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      release();
+    };
+  }, [isPlaying]);
 
   // Auto-play cuando cambia la canción
   useEffect(() => {
@@ -327,7 +369,10 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
       </footer>
 
       {/* ===== Mobile mini-player (<768px) ===== */}
-      <div className="md:hidden fixed left-0 right-0 z-20" style={{ bottom: "var(--bottom-nav-height)" }}>
+      <div
+        className="md:hidden fixed left-0 right-0 z-20 transition-all duration-300"
+        style={{ bottom: navVisible ? "var(--bottom-nav-height)" : "0" }}
+      >
         {/* Progress bar interactiva — área táctil amplia */}
         {currentTrack && (
           <div className="relative w-full h-5 flex items-center bg-transparent">
@@ -349,6 +394,7 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
               onTouchEnd={handleSeekTouchEnd}
               onMouseDown={handleSeekMouseDown}
               onMouseUp={handleSeekMouseUp}
+              onPointerDown={(e) => e.stopPropagation()}
               className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
             />
           </div>
@@ -357,29 +403,28 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
         <div className="flex items-center h-[var(--player-height)] bg-player/95 backdrop-blur-xl border-t border-border px-3 gap-3">
           {currentTrack ? (
             <>
-              {/* Thumbnail */}
-              <div className="w-11 h-11 rounded-md overflow-hidden bg-surface flex-shrink-0 relative">
-                <img
-                  src={currentTrack.thumbnail}
-                  alt={currentTrack.title}
-                  className="w-full h-full object-cover"
-                />
-                {!isReady && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-text-tertiary border-t-white rounded-full animate-spin" />
-                  </div>
-                )}
-              </div>
-
-              {/* Title + Artist */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate leading-tight">
-                  {currentTrack.title}
-                </p>
-                <p className="text-xs text-text-secondary truncate leading-tight">
-                  {currentTrack.artist}
-                </p>
-              </div>
+              {/* Thumbnail + Title — abre modal */}
+              <button
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                onClick={() => setShowModal(true)}
+              >
+                <div className="w-11 h-11 rounded-md overflow-hidden bg-surface flex-shrink-0 relative">
+                  <img
+                    src={currentTrack.thumbnail}
+                    alt={currentTrack.title}
+                    className="w-full h-full object-cover"
+                  />
+                  {!isReady && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-text-tertiary border-t-white rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate leading-tight">{currentTrack.title}</p>
+                  <p className="text-xs text-text-secondary truncate leading-tight">{currentTrack.artist}</p>
+                </div>
+              </button>
 
               {/* Controls */}
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -436,6 +481,104 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
           )}
         </div>
       </div>
+
+      {/* ===== Modal Now Playing ===== */}
+      {showModal && currentTrack && (
+        <div className="md:hidden fixed inset-0 z-50 flex flex-col bg-background animate-in slide-in-from-bottom duration-300">
+          {/* Fondo con portada difuminada */}
+          <div className="absolute inset-0 z-0">
+            <img src={currentTrack.thumbnail} alt="" className="w-full h-full object-cover blur-3xl scale-110 opacity-30" />
+            <div className="absolute inset-0 bg-background/70" />
+          </div>
+
+          <div className="relative z-10 flex flex-col h-full px-6 pt-safe">
+            {/* Header */}
+            <div className="flex items-center justify-between py-4">
+              <button onClick={() => setShowModal(false)} className="w-10 h-10 flex items-center justify-center text-foreground cursor-pointer">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <span className="text-sm font-semibold text-foreground">Reproduciendo ahora</span>
+              <div className="w-10" />
+            </div>
+
+            {/* Portada grande */}
+            <div className="flex-1 flex items-center justify-center py-6">
+              <div className="w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-2xl">
+                <img src={currentTrack.thumbnail} alt={currentTrack.title} className="w-full h-full object-cover" />
+              </div>
+            </div>
+
+            {/* Info + Favorito */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="min-w-0 flex-1 mr-4">
+                <p className="text-xl font-bold truncate">{currentTrack.title}</p>
+                <p className="text-text-secondary truncate mt-0.5">{currentTrack.artist}</p>
+              </div>
+              <button onClick={() => onToggleFavorite(currentTrack)} className="w-10 h-10 flex items-center justify-center flex-shrink-0 cursor-pointer">
+                <svg width="26" height="26" viewBox="0 0 24 24"
+                  fill={isFavorite ? "var(--klarinet-accent)" : "none"}
+                  stroke={isFavorite ? "var(--klarinet-accent)" : "currentColor"}
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Barra de progreso */}
+            <div className="mb-2">
+              <div className="relative h-10 flex items-center">
+                <div className="absolute left-0 right-0 h-1 bg-border rounded-full overflow-hidden pointer-events-none">
+                  <div className="h-full bg-accent transition-none rounded-full" style={{ width: `${played * 100}%` }} />
+                </div>
+                <input
+                  type="range" min={0} max={0.999999} step="any" value={played}
+                  onTouchStart={handleSeekTouchStart} onChange={handleSeekChange} onTouchEnd={handleSeekTouchEnd}
+                  onMouseDown={handleSeekMouseDown} onMouseUp={handleSeekMouseUp}
+                  className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+                />
+              </div>
+              <div className="flex justify-between text-xs text-text-tertiary tabular-nums -mt-1">
+                <span>{formatTime(playedSeconds)}</span>
+                <span>{formatTime(totalDuration)}</span>
+              </div>
+            </div>
+
+            {/* Controles */}
+            <div className="flex items-center justify-between pb-10 mt-2">
+              <button onClick={playPrev} disabled={!currentTrack} className="w-[72px] h-[72px] flex items-center justify-center text-foreground cursor-pointer disabled:opacity-40">
+                <svg width="27" height="27" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="3" y="5" width="2.5" height="14" rx="0.5" />
+                  <polygon points="21,5 9,12 21,19" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="w-16 h-16 rounded-full bg-accent flex items-center justify-center shadow-lg cursor-pointer text-foreground"
+              >
+                {isPlaying ? (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="5" y="3" width="5" height="18" rx="1" />
+                    <rect x="14" y="3" width="5" height="18" rx="1" />
+                  </svg>
+                ) : (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="6,3 20,12 6,21" />
+                  </svg>
+                )}
+              </button>
+              <button onClick={playNext} disabled={!hasNext} className="w-[72px] h-[72px] flex items-center justify-center text-foreground cursor-pointer disabled:opacity-40">
+                <svg width="27" height="27" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="18.5" y="5" width="2.5" height="14" rx="0.5" />
+                  <polygon points="3,5 15,12 3,19" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

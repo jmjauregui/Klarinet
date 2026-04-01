@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
+const NON_MUSIC_KEYWORDS = [
+  "trailer", "teaser", "entrevista", "interview", "reportaje", "report",
+  "noticias", "news", "podcast", "documental", "documentary", "reaction",
+  "reacción", "reaccion", "review", "reseña", "tutorial", "making of",
+  "behind the scenes", "detrás de cámaras", "late show", "talk show",
+  "highlights", "resumen", "gameplay", "unboxing",
+];
+
+function isMusicContent(item: { duration: number; title: string }): boolean {
+  if (item.duration < 90 || item.duration > 600) return false;
+  const titleLower = item.title.toLowerCase();
+  return !NON_MUSIC_KEYWORDS.some((kw) => titleLower.includes(kw));
+}
+
 const openai = new OpenAI({
   baseURL: "https://api.deepseek.com",
   apiKey: process.env.DEEPSEEK_API_KEY,
@@ -66,7 +80,11 @@ export async function POST(req: NextRequest) {
           next: { revalidate: 0 },
         })
           .then((r) => r.json())
-          .then((data) => (Array.isArray(data.result) && data.result[0]) ? data.result[0] : null)
+          .then((data) => {
+            if (!Array.isArray(data.result)) return null;
+            const valid = data.result.find(isMusicContent);
+            return valid ?? null;
+          })
           .catch(() => null)
       )
     );

@@ -111,13 +111,31 @@ export default function Home() {
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
   const [showAddToPlaylistModal, setShowAddToPlaylistModal] = useState(false);
   const [trackForPlaylist, setTrackForPlaylist] = useState<Track | null>(null);
+  const [navVisible, setNavVisible] = useState(true);
 
   // Ref para evitar duplicar el guardado de historial
   const lastHistoryTrackId = useRef<string | null>(null);
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref para controlar si ya se cargaron canciones relacionadas en esta sesión de búsqueda
   const relatedFetchedRef = useRef(false);
   // Ref para indicar que la siguiente canción exitosa debe disparar el fetch de similares
   const needsRelatedFetchRef = useRef(false);
+
+  // Auto-ocultar nav mobile tras 5s de inactividad, mostrar al interactuar
+  useEffect(() => {
+    const showNav = () => {
+      setNavVisible(true);
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+      navTimerRef.current = setTimeout(() => setNavVisible(false), 5000);
+    };
+    showNav();
+    const events = ["touchstart", "touchmove", "scroll"] as const;
+    events.forEach((e) => document.addEventListener(e, showNav, { passive: true }));
+    return () => {
+      events.forEach((e) => document.removeEventListener(e, showNav));
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    };
+  }, []);
 
   // Cargar favoritos e historial desde localStorage al montar
   useEffect(() => {
@@ -520,11 +538,12 @@ export default function Home() {
         playlists={playlists}
         onCreatePlaylist={() => setShowCreatePlaylistModal(true)}
         onSelectPlaylist={handleSelectPlaylist}
+        navVisible={navVisible}
       />
       <MainContent onSearch={handleSearch} themeMode={themeMode} onThemeToggle={toggleTheme}>
         {renderContent()}
       </MainContent>
-      <Player currentTrack={currentTrack} queue={queue} onTrackChange={handleTrackChange} onTrackError={handleTrackError} onTrackReady={handleTrackReady} favoriteTracks={favoriteTracks} onToggleFavorite={handleToggleFavorite} />
+      <Player currentTrack={currentTrack} queue={queue} onTrackChange={handleTrackChange} onTrackError={handleTrackError} onTrackReady={handleTrackReady} favoriteTracks={favoriteTracks} onToggleFavorite={handleToggleFavorite} navVisible={navVisible} />
 
       {/* Playlist Modals */}
       <CreatePlaylistModal
