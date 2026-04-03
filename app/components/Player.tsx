@@ -37,6 +37,16 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
   const [isSeeking, setIsSeeking] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showVolumePopup, setShowVolumePopup] = useState(false);
+  const [windowHeight, setWindowHeight] = useState(() => typeof window !== "undefined" ? window.innerHeight : 800);
+
+  useEffect(() => {
+    const onResize = () => setWindowHeight(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const volumePopupRef = useRef<HTMLDivElement | null>(null);
+  const volumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFavorite = currentTrack
     ? favoriteTracks.some((t) => t.id === currentTrack.id)
@@ -66,6 +76,29 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
       onTrackChange(queue[currentIndex - 1]);
     }
   }, [hasPrev, currentIndex, queue, onTrackChange, playedSeconds]);
+
+  const resetVolumeTimer = useCallback(() => {
+    if (volumeTimerRef.current) clearTimeout(volumeTimerRef.current);
+    volumeTimerRef.current = setTimeout(() => setShowVolumePopup(false), 3000);
+  }, []);
+
+  // Cierra el popup de volumen al hacer click fuera
+  useEffect(() => {
+    if (!showVolumePopup) return;
+    resetVolumeTimer();
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (volumePopupRef.current && !volumePopupRef.current.contains(e.target as Node)) {
+        setShowVolumePopup(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+      if (volumeTimerRef.current) clearTimeout(volumeTimerRef.current);
+    };
+  }, [showVolumePopup, resetVolumeTimer]);
 
   // Wake Lock: mantener pantalla encendida mientras reproduce
   useEffect(() => {
@@ -345,26 +378,62 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
           </div>
         </div>
 
-        {/* Volumen y opciones */}
+        {/* Opciones derecha */}
         <div className="flex items-center gap-3 w-[30%] min-w-[180px] justify-end">
           <button className="text-text-secondary hover:text-foreground transition-colors cursor-pointer">
             <QueueIcon />
           </button>
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className="text-text-secondary hover:text-foreground transition-colors cursor-pointer"
-          >
-            {isMuted || volume === 0 ? <VolumeMuteIcon /> : <VolumeIcon />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={isMuted ? 0 : volume}
-            onChange={handleVolumeChange}
-            className="w-24 h-1 accent-white"
-          />
+
+          {/* Botón volumen desktop con popup vertical */}
+          <div className="relative flex items-center">
+            <button
+              onClick={() => setShowVolumePopup((v) => !v)}
+              className="text-text-secondary hover:text-foreground transition-colors cursor-pointer"
+            >
+              {isMuted || volume === 0 ? <VolumeMuteIcon /> : <VolumeIcon />}
+            </button>
+
+            {showVolumePopup && (
+              <div
+                ref={volumePopupRef}
+                className="fixed flex flex-col items-center gap-2 bg-surface border border-border rounded-2xl py-4 px-3 shadow-xl z-50"
+                style={{ bottom: "calc(var(--player-height) + 8px)", right: "1rem" }}
+                onWheel={(e) => {
+                  e.preventDefault();
+                  const delta = e.deltaY < 0 ? 0.05 : -0.05;
+                  const next = Math.min(1, Math.max(0, (isMuted ? 0 : volume) + delta));
+                  setVolume(next);
+                  if (isMuted && next > 0) setIsMuted(false);
+                  resetVolumeTimer();
+                }}
+                onPointerMove={resetVolumeTimer}
+              >
+                <span className="text-xs text-text-secondary tabular-nums">{Math.round((isMuted ? 0 : volume) * 100)}</span>
+                <div className="relative flex items-center justify-center" style={{ height: 120, width: 28 }}>
+                  <div className="absolute inset-x-0 mx-auto w-1 rounded-full bg-border" style={{ height: 120 }}>
+                    <div
+                      className="absolute bottom-0 w-full rounded-full bg-accent"
+                      style={{ height: `${(isMuted ? 0 : volume) * 100}%` }}
+                    />
+                  </div>
+                  <input
+                    type="range" min={0} max={1} step={0.02}
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="absolute opacity-0 cursor-pointer"
+                    style={{ writingMode: "vertical-lr", direction: "rtl", width: 28, height: 120 }}
+                  />
+                </div>
+                <button
+                  onClick={() => setIsMuted((m) => !m)}
+                  className="text-text-secondary hover:text-foreground cursor-pointer"
+                >
+                  {isMuted || volume === 0 ? <VolumeMuteIcon /> : <VolumeIcon />}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </footer>
 
@@ -484,100 +553,277 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
 
       {/* ===== Modal Now Playing ===== */}
       {showModal && currentTrack && (
-        <div className="md:hidden fixed inset-0 z-50 flex flex-col bg-background animate-in slide-in-from-bottom duration-300">
-          {/* Fondo con portada difuminada */}
-          <div className="absolute inset-0 z-0">
-            <img src={currentTrack.thumbnail} alt="" className="w-full h-full object-cover blur-3xl scale-110 opacity-30" />
-            <div className="absolute inset-0 bg-background/70" />
-          </div>
-
-          <div className="relative z-10 flex flex-col h-full px-6 pt-safe">
-            {/* Header */}
-            <div className="flex items-center justify-between py-4">
-              <button onClick={() => setShowModal(false)} className="w-10 h-10 flex items-center justify-center text-foreground cursor-pointer">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              <span className="text-sm font-semibold text-foreground">Reproduciendo ahora</span>
-              <div className="w-10" />
-            </div>
-
-            {/* Portada grande */}
-            <div className="flex-1 flex items-center justify-center py-6">
-              <div className="w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-2xl">
+        <>
+          {/* ── Modo barra compacta (< 300px de alto) ── */}
+          {windowHeight < 300 ? (
+            <div className="md:hidden fixed inset-0 z-50 flex items-center bg-player/95 backdrop-blur-xl border-t border-border px-3 gap-3">
+              <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0">
                 <img src={currentTrack.thumbnail} alt={currentTrack.title} className="w-full h-full object-cover" />
               </div>
-            </div>
-
-            {/* Info + Favorito */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="min-w-0 flex-1 mr-4">
-                <p className="text-xl font-bold truncate">{currentTrack.title}</p>
-                <p className="text-text-secondary truncate mt-0.5">{currentTrack.artist}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate leading-tight">{currentTrack.title}</p>
+                <p className="text-xs text-text-secondary truncate leading-tight">{currentTrack.artist}</p>
               </div>
-              <button onClick={() => onToggleFavorite(currentTrack)} className="w-10 h-10 flex items-center justify-center flex-shrink-0 cursor-pointer">
-                <svg width="26" height="26" viewBox="0 0 24 24"
-                  fill={isFavorite ? "var(--klarinet-accent)" : "none"}
-                  stroke={isFavorite ? "var(--klarinet-accent)" : "currentColor"}
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                >
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-              </button>
-            </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => onToggleFavorite(currentTrack)} className="w-9 h-9 flex items-center justify-center cursor-pointer">
+                  <svg width="18" height="18" viewBox="0 0 24 24"
+                    fill={isFavorite ? "var(--klarinet-accent)" : "none"}
+                    stroke={isFavorite ? "var(--klarinet-accent)" : "currentColor"}
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                </button>
+                <button onClick={() => setIsPlaying(!isPlaying)} className="w-9 h-9 flex items-center justify-center cursor-pointer text-foreground">
+                  {isPlaying ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="5" height="18" rx="1" /><rect x="14" y="3" width="5" height="18" rx="1" /></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21" /></svg>
+                  )}
+                </button>
+                <button onClick={playNext} disabled={!hasNext} className={`w-9 h-9 flex items-center justify-center cursor-pointer text-foreground ${!hasNext ? "opacity-40" : ""}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="18.5" y="5" width="2.5" height="14" rx="0.5" />
+                    <polygon points="3,5 15,12 3,19" />
+                  </svg>
+                </button>
+                <div className="relative flex items-center">
+                  <button
+                    onClick={() => setShowVolumePopup((v) => !v)}
+                    className="w-9 h-9 flex items-center justify-center text-foreground cursor-pointer"
+                  >
+                    {isMuted || volume === 0 ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+                      </svg>
+                    ) : volume < 0.5 ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                      </svg>
+                    )}
+                  </button>
 
-            {/* Barra de progreso */}
-            <div className="mb-2">
-              <div className="relative h-10 flex items-center">
-                <div className="absolute left-0 right-0 h-1 bg-border rounded-full overflow-hidden pointer-events-none">
-                  <div className="h-full bg-accent transition-none rounded-full" style={{ width: `${played * 100}%` }} />
+                  {showVolumePopup && (
+                    <div
+                      ref={volumePopupRef}
+                      className="absolute bottom-full mb-3 right-0 flex flex-col items-center gap-2 bg-surface border border-border rounded-2xl py-4 px-3 shadow-xl z-10"
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        const delta = e.deltaY < 0 ? 0.05 : -0.05;
+                        const next = Math.min(1, Math.max(0, (isMuted ? 0 : volume) + delta));
+                        setVolume(next);
+                        if (isMuted && next > 0) setIsMuted(false);
+                        resetVolumeTimer();
+                      }}
+                      onPointerMove={resetVolumeTimer}
+                    >
+                      <span className="text-xs text-text-secondary tabular-nums">{Math.round((isMuted ? 0 : volume) * 100)}</span>
+                      <div className="relative flex items-center justify-center" style={{ height: 120, width: 28 }}>
+                        <div className="absolute inset-x-0 mx-auto w-1 rounded-full bg-border" style={{ height: 120 }}>
+                          <div className="absolute bottom-0 w-full rounded-full bg-accent" style={{ height: `${(isMuted ? 0 : volume) * 100}%` }} />
+                        </div>
+                        <input
+                          type="range" min={0} max={1} step={0.02}
+                          value={isMuted ? 0 : volume}
+                          onChange={handleVolumeChange}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          className="absolute opacity-0 cursor-pointer"
+                          style={{ writingMode: "vertical-lr", direction: "rtl", width: 28, height: 120 }}
+                        />
+                      </div>
+                      <button onClick={() => setIsMuted((m) => !m)} className="text-text-secondary hover:text-foreground cursor-pointer">
+                        {isMuted || volume === 0 ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                            <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+                          </svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <input
-                  type="range" min={0} max={0.999999} step="any" value={played}
-                  onTouchStart={handleSeekTouchStart} onChange={handleSeekChange} onTouchEnd={handleSeekTouchEnd}
-                  onMouseDown={handleSeekMouseDown} onMouseUp={handleSeekMouseUp}
-                  className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
-                />
-              </div>
-              <div className="flex justify-between text-xs text-text-tertiary tabular-nums -mt-1">
-                <span>{formatTime(playedSeconds)}</span>
-                <span>{formatTime(totalDuration)}</span>
               </div>
             </div>
 
-            {/* Controles */}
-            <div className="flex items-center justify-between pb-10 mt-2">
-              <button onClick={playPrev} disabled={!currentTrack} className="w-[72px] h-[72px] flex items-center justify-center text-foreground cursor-pointer disabled:opacity-40">
-                <svg width="27" height="27" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="3" y="5" width="2.5" height="14" rx="0.5" />
-                  <polygon points="21,5 9,12 21,19" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="w-16 h-16 rounded-full bg-accent flex items-center justify-center shadow-lg cursor-pointer text-foreground"
-              >
-                {isPlaying ? (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="5" y="3" width="5" height="18" rx="1" />
-                    <rect x="14" y="3" width="5" height="18" rx="1" />
-                  </svg>
-                ) : (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="6,3 20,12 6,21" />
-                  </svg>
-                )}
-              </button>
-              <button onClick={playNext} disabled={!hasNext} className="w-[72px] h-[72px] flex items-center justify-center text-foreground cursor-pointer disabled:opacity-40">
-                <svg width="27" height="27" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="18.5" y="5" width="2.5" height="14" rx="0.5" />
-                  <polygon points="3,5 15,12 3,19" />
-                </svg>
-              </button>
+          ) : (
+            /* ── Modo normal / comprimido (≥ 300px de alto) ── */
+            <div className="md:hidden fixed inset-0 z-50 flex flex-col bg-background animate-in slide-in-from-bottom duration-300">
+              {/* Fondo difuminado */}
+              <div className="absolute inset-0 z-0">
+                <img src={currentTrack.thumbnail} alt="" className="w-full h-full object-cover blur-3xl scale-110 opacity-30" />
+                <div className="absolute inset-0 bg-background/70" />
+              </div>
+
+              <div className="relative z-10 flex flex-col h-full px-6 overflow-hidden" style={{ paddingTop: "max(env(safe-area-inset-top), 12px)" }}>
+                {/* Header */}
+                <div className="flex items-center justify-between py-3 flex-shrink-0">
+                  <button onClick={() => setShowModal(false)} className="w-10 h-10 flex items-center justify-center text-foreground cursor-pointer">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  <span className="text-sm font-semibold text-foreground">Reproduciendo ahora</span>
+
+                  {/* Botón volumen + popup vertical */}
+                  <div className="relative w-10 flex justify-center">
+                    <button
+                      onClick={() => setShowVolumePopup((v) => !v)}
+                      className="w-10 h-10 flex items-center justify-center text-foreground cursor-pointer"
+                    >
+                      {isMuted || volume === 0 ? (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+                        </svg>
+                      ) : volume < 0.5 ? (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        </svg>
+                      ) : (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        </svg>
+                      )}
+                    </button>
+
+                    {showVolumePopup && (
+                      <div
+                        ref={volumePopupRef}
+                        className="absolute bottom-full mb-3 right-0 flex flex-col items-center gap-2 bg-surface border border-border rounded-2xl py-4 px-3 shadow-xl z-10"
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          const delta = e.deltaY < 0 ? 0.05 : -0.05;
+                          const next = Math.min(1, Math.max(0, (isMuted ? 0 : volume) + delta));
+                          setVolume(next);
+                          if (isMuted && next > 0) setIsMuted(false);
+                          resetVolumeTimer();
+                        }}
+                        onPointerMove={resetVolumeTimer}
+                      >
+                        <span className="text-xs text-text-secondary tabular-nums">{Math.round((isMuted ? 0 : volume) * 100)}</span>
+                        <div className="relative flex items-center justify-center" style={{ height: 120, width: 28 }}>
+                          <div className="absolute inset-x-0 mx-auto w-1 rounded-full bg-border" style={{ height: 120 }}>
+                            <div className="absolute bottom-0 w-full rounded-full bg-accent" style={{ height: `${(isMuted ? 0 : volume) * 100}%` }} />
+                          </div>
+                          <input
+                            type="range" min={0} max={1} step={0.02}
+                            value={isMuted ? 0 : volume}
+                            onChange={handleVolumeChange}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className="absolute opacity-0 cursor-pointer"
+                            style={{ writingMode: "vertical-lr", direction: "rtl", width: 28, height: 120 }}
+                          />
+                        </div>
+                        <button onClick={() => setIsMuted((m) => !m)} className="text-text-secondary hover:text-foreground cursor-pointer">
+                          {isMuted || volume === 0 ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                              <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+                            </svg>
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Portada — se encoge con flex-1 min-h-0 */}
+                <div className="flex-1 min-h-0 flex items-center justify-center py-2">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl" style={{ maxWidth: "min(100%, calc(100vh - 280px))", aspectRatio: "1/1" }}>
+                    <img src={currentTrack.thumbnail} alt={currentTrack.title} className="w-full h-full object-cover" />
+                  </div>
+                </div>
+
+                {/* Info + Favorito */}
+                <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                  <div className="min-w-0 flex-1 mr-4">
+                    <p className="text-xl font-bold truncate">{currentTrack.title}</p>
+                    <p className="text-text-secondary truncate mt-0.5">{currentTrack.artist}</p>
+                  </div>
+                  <button onClick={() => onToggleFavorite(currentTrack)} className="w-10 h-10 flex items-center justify-center flex-shrink-0 cursor-pointer">
+                    <svg width="26" height="26" viewBox="0 0 24 24"
+                      fill={isFavorite ? "var(--klarinet-accent)" : "none"}
+                      stroke={isFavorite ? "var(--klarinet-accent)" : "currentColor"}
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    >
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Barra de progreso */}
+                <div className="mb-2 flex-shrink-0">
+                  <div className="relative h-8 flex items-center">
+                    <div className="absolute left-0 right-0 h-1 bg-border rounded-full overflow-hidden pointer-events-none">
+                      <div className="h-full bg-accent transition-none rounded-full" style={{ width: `${played * 100}%` }} />
+                    </div>
+                    <input
+                      type="range" min={0} max={0.999999} step="any" value={played}
+                      onTouchStart={handleSeekTouchStart} onChange={handleSeekChange} onTouchEnd={handleSeekTouchEnd}
+                      onMouseDown={handleSeekMouseDown} onMouseUp={handleSeekMouseUp}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-text-tertiary tabular-nums -mt-1">
+                    <span>{formatTime(playedSeconds)}</span>
+                    <span>{formatTime(totalDuration)}</span>
+                  </div>
+                </div>
+
+                {/* Controles */}
+                <div className="flex items-center justify-between flex-shrink-0" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 24px)" }}>
+                  <button onClick={playPrev} disabled={!currentTrack} className="w-[72px] h-[72px] flex items-center justify-center text-foreground cursor-pointer disabled:opacity-40">
+                    <svg width="27" height="27" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="3" y="5" width="2.5" height="14" rx="0.5" />
+                      <polygon points="21,5 9,12 21,19" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className="w-16 h-16 rounded-full bg-accent flex items-center justify-center shadow-lg cursor-pointer text-foreground"
+                  >
+                    {isPlaying ? (
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="5" y="3" width="5" height="18" rx="1" />
+                        <rect x="14" y="3" width="5" height="18" rx="1" />
+                      </svg>
+                    ) : (
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="6,3 20,12 6,21" />
+                      </svg>
+                    )}
+                  </button>
+                  <button onClick={playNext} disabled={!hasNext} className="w-[72px] h-[72px] flex items-center justify-center text-foreground cursor-pointer disabled:opacity-40">
+                    <svg width="27" height="27" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="18.5" y="5" width="2.5" height="14" rx="0.5" />
+                      <polygon points="3,5 15,12 3,19" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </>
   );
