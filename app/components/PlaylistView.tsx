@@ -24,6 +24,7 @@ export default function PlaylistView({
 }: PlaylistViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const filteredTracks = useMemo(() => {
     if (!searchQuery.trim()) return playlist.tracks;
@@ -43,6 +44,16 @@ export default function PlaylistView({
     if (playlist.tracks.length > 0) {
       onPlayTrack(playlist.tracks[0], playlist.tracks);
     }
+  };
+
+  const handleShuffle = () => {
+    if (playlist.tracks.length === 0) return;
+    const shuffled = [...playlist.tracks];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    onPlayTrack(shuffled[0], shuffled);
   };
 
   const formatDate = (timestamp: number) => {
@@ -86,16 +97,48 @@ export default function PlaylistView({
             {/* Actions */}
             <div className="flex items-center gap-2 shrink-0">
               {playlist.tracks.length > 0 && (
-                <button
-                  onClick={handlePlayAll}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-sm font-medium transition-colors cursor-pointer"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="6,3 20,12 6,21" />
-                  </svg>
-                  <span className="hidden sm:inline">Reproducir</span>
-                </button>
+                <>
+                  <button
+                    onClick={handlePlayAll}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="6,3 20,12 6,21" />
+                    </svg>
+                    <span className="hidden sm:inline">Reproducir</span>
+                  </button>
+                  <button
+                    onClick={handleShuffle}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface hover:bg-hover border border-border text-sm font-medium transition-colors cursor-pointer"
+                    title="Reproducir en orden aleatorio"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 3 21 3 21 8" />
+                      <line x1="4" y1="20" x2="21" y2="3" />
+                      <polyline points="21 16 21 21 16 21" />
+                      <line x1="15" y1="15" x2="21" y2="21" />
+                    </svg>
+                    <span className="hidden sm:inline">Aleatorio</span>
+                  </button>
+                </>
               )}
+              <button
+                onClick={() => setViewMode(v => v === "grid" ? "list" : "grid")}
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-text-tertiary hover:text-foreground hover:bg-hover transition-colors cursor-pointer"
+                title={viewMode === "grid" ? "Ver como lista" : "Ver como cuadrícula"}
+              >
+                {viewMode === "grid" ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                  </svg>
+                )}
+              </button>
               <button
                 onClick={() => setShowConfirmDelete(true)}
                 className="w-10 h-10 flex items-center justify-center rounded-xl text-text-tertiary hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
@@ -174,16 +217,14 @@ export default function PlaylistView({
 
         {/* Track list */}
         {playlist.tracks.length > 0 && filteredTracks.length > 0 ? (
+          viewMode === "grid" ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {filteredTracks.map((track) => {
               const isPlaying = currentTrackId === track.id;
               return (
                 <div key={track.id} className="group/pl relative">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemoveTrack(playlist.id, track.id);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); onRemoveTrack(playlist.id, track.id); }}
                     className="absolute -top-2 -right-2 z-10 w-7 h-7 bg-black/70 backdrop-blur-sm text-white rounded-full flex items-center justify-center opacity-0 group-hover/pl:opacity-100 transition-opacity cursor-pointer hover:bg-red-500 shadow-lg"
                     title="Quitar de playlist"
                   >
@@ -191,10 +232,7 @@ export default function PlaylistView({
                       <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </button>
-                  <button
-                    onClick={() => handlePlay(track)}
-                    className="w-full text-left cursor-pointer"
-                  >
+                  <button onClick={() => handlePlay(track)} className="w-full text-left cursor-pointer">
                     <div className="aspect-square bg-surface rounded-lg mb-2 overflow-hidden relative shadow-sm hover:shadow-md transition-shadow">
                       <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
                       <div className={`absolute inset-0 flex items-center justify-center transition-opacity bg-black/40 ${isPlaying ? "opacity-100" : "opacity-0 group-hover/pl:opacity-100"}`}>
@@ -210,6 +248,41 @@ export default function PlaylistView({
               );
             })}
           </div>
+          ) : (
+          <div className="space-y-1">
+            {filteredTracks.map((track, index) => {
+              const isPlaying = currentTrackId === track.id;
+              return (
+                <div key={track.id} className="group/pl relative flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-hover transition-colors">
+                  <span className="w-6 text-center text-sm text-text-tertiary tabular-nums flex-shrink-0">
+                    {isPlaying ? <EqualizerIconSmall /> : index + 1}
+                  </span>
+                  <button onClick={() => handlePlay(track)} className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer">
+                    <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 bg-surface relative">
+                      <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
+                      <div className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity ${isPlaying ? "opacity-100" : "opacity-0 group-hover/pl:opacity-100"}`}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21" /></svg>
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm font-medium truncate ${isPlaying ? "text-accent" : "text-foreground"}`}>{track.title}</p>
+                      <p className="text-xs text-text-secondary truncate">{track.artist}</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => onRemoveTrack(playlist.id, track.id)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-text-tertiary hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover/pl:opacity-100 transition-all cursor-pointer flex-shrink-0"
+                    title="Quitar de playlist"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          )
         ) : playlist.tracks.length > 0 && filteredTracks.length === 0 ? (
           <div className="text-center py-16">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-4 text-text-tertiary opacity-50">
@@ -227,6 +300,25 @@ export default function PlaylistView({
           </div>
         )}
     </div>
+  );
+}
+
+function EqualizerIconSmall() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="var(--klarinet-accent)">
+      <rect x="1" y="8" width="3" height="6" rx="0.5">
+        <animate attributeName="height" values="6;10;6" dur="0.8s" repeatCount="indefinite" />
+        <animate attributeName="y" values="8;4;8" dur="0.8s" repeatCount="indefinite" />
+      </rect>
+      <rect x="6" y="4" width="3" height="10" rx="0.5">
+        <animate attributeName="height" values="10;6;10" dur="0.6s" repeatCount="indefinite" />
+        <animate attributeName="y" values="4;8;4" dur="0.6s" repeatCount="indefinite" />
+      </rect>
+      <rect x="11" y="6" width="3" height="8" rx="0.5">
+        <animate attributeName="height" values="8;12;8" dur="0.7s" repeatCount="indefinite" />
+        <animate attributeName="y" values="6;2;6" dur="0.7s" repeatCount="indefinite" />
+      </rect>
+    </svg>
   );
 }
 

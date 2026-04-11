@@ -47,6 +47,23 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
   }, []);
   const volumePopupRef = useRef<HTMLDivElement | null>(null);
   const volumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stallCheckRef = useRef<number>(0); // último playedSeconds visto por el watchdog
+
+  // Watchdog: si isPlaying pero playedSeconds no avanzó en 20s, forzar seek para desatascar
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      setPlayedSeconds((current) => {
+        if (current === stallCheckRef.current && playerRef.current) {
+          const t = playerRef.current.getCurrentTime();
+          playerRef.current.seekTo(t, "seconds");
+        }
+        stallCheckRef.current = current;
+        return current;
+      });
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   const isFavorite = currentTrack
     ? favoriteTracks.some((t) => t.id === currentTrack.id)
@@ -614,7 +631,8 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
                   {showVolumePopup && (
                     <div
                       ref={volumePopupRef}
-                      className="absolute bottom-full mb-3 right-0 flex flex-col items-center gap-2 bg-surface border border-border rounded-2xl py-4 px-3 shadow-xl z-10"
+                      className="absolute bottom-full mb-2 right-0 flex flex-row-reverse items-center gap-2 bg-surface border border-border rounded-2xl px-4 py-2 shadow-xl z-10"
+                      style={{ width: 200 }}
                       onWheel={(e) => {
                         e.preventDefault();
                         const delta = e.deltaY < 0 ? 0.05 : -0.05;
@@ -625,29 +643,32 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
                       }}
                       onPointerMove={resetVolumeTimer}
                     >
-                      <span className="text-xs text-text-secondary tabular-nums">{Math.round((isMuted ? 0 : volume) * 100)}</span>
-                      <div className="relative flex items-center justify-center" style={{ height: 120, width: 28 }}>
-                        <div className="absolute inset-x-0 mx-auto w-1 rounded-full bg-border" style={{ height: 120 }}>
-                          <div className="absolute bottom-0 w-full rounded-full bg-accent" style={{ height: `${(isMuted ? 0 : volume) * 100}%` }} />
+                      {/* Nivel numérico a la derecha */}
+                      <span className="text-xs text-text-secondary tabular-nums w-7 text-right flex-shrink-0">{Math.round((isMuted ? 0 : volume) * 100)}</span>
+                      {/* Slider horizontal */}
+                      <div className="relative flex items-center flex-1" style={{ height: 28 }}>
+                        <div className="absolute left-0 right-0 h-1 rounded-full bg-border overflow-hidden pointer-events-none">
+                          <div className="h-full rounded-full bg-accent" style={{ width: `${(isMuted ? 0 : volume) * 100}%` }} />
                         </div>
                         <input
                           type="range" min={0} max={1} step={0.02}
                           value={isMuted ? 0 : volume}
                           onChange={handleVolumeChange}
                           onPointerDown={(e) => e.stopPropagation()}
-                          className="absolute opacity-0 cursor-pointer"
-                          style={{ writingMode: "vertical-lr", direction: "rtl", width: 28, height: 120 }}
+                          className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
                         />
                       </div>
-                      <button onClick={() => setIsMuted((m) => !m)} className="text-text-secondary hover:text-foreground cursor-pointer">
+                      {/* Botón mute a la izquierda */}
+                      <button onClick={() => setIsMuted((m) => !m)} className="text-text-secondary hover:text-foreground cursor-pointer flex-shrink-0">
                         {isMuted || volume === 0 ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
                             <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
                           </svg>
                         ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
                           </svg>
                         )}
                       </button>
@@ -704,7 +725,7 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
                     {showVolumePopup && (
                       <div
                         ref={volumePopupRef}
-                        className="absolute bottom-full mb-3 right-0 flex flex-col items-center gap-2 bg-surface border border-border rounded-2xl py-4 px-3 shadow-xl z-10"
+                        className="absolute top-full mt-2 right-0 flex flex-col items-center gap-2 bg-surface border border-border rounded-2xl py-4 px-3 shadow-xl z-10"
                         onWheel={(e) => {
                           e.preventDefault();
                           const delta = e.deltaY < 0 ? 0.05 : -0.05;
@@ -738,6 +759,7 @@ export default function Player({ currentTrack, queue, onTrackChange, onTrackErro
                           ) : (
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
                             </svg>
                           )}
                         </button>

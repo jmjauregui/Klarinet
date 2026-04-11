@@ -22,6 +22,7 @@ interface SearchResultsProps {
   onSearch: (query: string) => void;
   recentlyPlayed: Track[];
   onAddToPlaylist: (track: Track) => void;
+  onSaveQueueAsPlaylist: (tracks: Track[]) => void;
 }
 
 export default function SearchResults({
@@ -37,6 +38,7 @@ export default function SearchResults({
   onSearch,
   recentlyPlayed,
   onAddToPlaylist,
+  onSaveQueueAsPlaylist,
 }: SearchResultsProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -87,9 +89,23 @@ export default function SearchResults({
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <h2 className="text-2xl font-bold">
+        <h2 className="text-2xl font-bold flex-1 min-w-0 truncate">
           Resultados para &ldquo;{query}&rdquo;
         </h2>
+        {!isLoading && results.length > 0 && (
+          <button
+            onClick={() => onSaveQueueAsPlaylist(results.map(toTrack))}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-surface hover:bg-hover border border-border transition-colors cursor-pointer shrink-0"
+            title="Guardar lista como playlist"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+            <span className="hidden sm:inline">Guardar playlist</span>
+          </button>
+        )}
       </div>
 
       {/* Loading */}

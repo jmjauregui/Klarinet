@@ -12,6 +12,7 @@ import SettingsView from "./components/SettingsView";
 import PlaylistView from "./components/PlaylistView";
 import CreatePlaylistModal from "./components/CreatePlaylistModal";
 import AddToPlaylistModal from "./components/AddToPlaylistModal";
+import SaveQueueAsPlaylistModal from "./components/SaveQueueAsPlaylistModal";
 import { useTheme } from "./components/ThemeToggle";
 import { useAccentColor } from "./components/SettingsView";
 import type { Track } from "./components/Player";
@@ -111,6 +112,8 @@ export default function Home() {
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
   const [showAddToPlaylistModal, setShowAddToPlaylistModal] = useState(false);
   const [trackForPlaylist, setTrackForPlaylist] = useState<Track | null>(null);
+  const [showSaveQueueModal, setShowSaveQueueModal] = useState(false);
+  const [queueForPlaylist, setQueueForPlaylist] = useState<Track[]>([]);
   const [navVisible, setNavVisible] = useState(true);
 
   // Ref para evitar duplicar el guardado de historial
@@ -435,6 +438,40 @@ export default function Home() {
     setShowAddToPlaylistModal(true);
   }, []);
 
+  const handleOpenSaveQueueAsPlaylist = useCallback((tracks: Track[]) => {
+    setQueueForPlaylist(tracks);
+    setShowSaveQueueModal(true);
+  }, []);
+
+  const handleSaveQueueAsPlaylist = useCallback((name: string, tracks: Track[]) => {
+    const newPlaylist: Playlist = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name,
+      tracks,
+      createdAt: Date.now(),
+    };
+    setPlaylists((prev) => {
+      const updated = [newPlaylist, ...prev];
+      savePlaylists(updated);
+      return updated;
+    });
+    setActiveSection(`playlist-${newPlaylist.id}`);
+  }, []);
+
+  const handleAddQueueToExistingPlaylist = useCallback((playlistId: string, tracks: Track[]) => {
+    setPlaylists((prev) => {
+      const updated = prev.map((pl) => {
+        if (pl.id !== playlistId) return pl;
+        const existingIds = new Set(pl.tracks.map((t) => t.id));
+        const newTracks = tracks.filter((t) => !existingIds.has(t.id));
+        return { ...pl, tracks: [...pl.tracks, ...newTracks] };
+      });
+      savePlaylists(updated);
+      return updated;
+    });
+    setActiveSection(`playlist-${playlistId}`);
+  }, []);
+
   const renderContent = () => {
     switch (activeSection) {
       case "search":
@@ -452,6 +489,7 @@ export default function Home() {
             onSearch={handleSearch}
             recentlyPlayed={recentlyPlayed}
             onAddToPlaylist={handleOpenAddToPlaylist}
+            onSaveQueueAsPlaylist={handleOpenSaveQueueAsPlaylist}
           />
         );
       case "library":
@@ -562,6 +600,14 @@ export default function Home() {
           setShowAddToPlaylistModal(false);
           setShowCreatePlaylistModal(true);
         }}
+      />
+      <SaveQueueAsPlaylistModal
+        open={showSaveQueueModal}
+        onClose={() => setShowSaveQueueModal(false)}
+        tracks={queueForPlaylist}
+        existingPlaylists={playlists}
+        onSaveNew={handleSaveQueueAsPlaylist}
+        onAddToExisting={handleAddQueueToExistingPlaylist}
       />
     </div>
   );
